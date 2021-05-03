@@ -166,9 +166,6 @@
       </div>
       <?php  } ?>
     
-  
-    
-
 
     <div class="container">
         <div class="row justify-content-center">
@@ -272,7 +269,7 @@
                                 $r = oci_parse($conn, $query);
                                 
                                 $stid = oci_new_cursor($conn);
-
+                                
                                 oci_bind_by_name($r, ":title", $searchKey);
                                 oci_bind_by_name($r, ":cursbv", $stid, -1, OCI_B_CURSOR);
 

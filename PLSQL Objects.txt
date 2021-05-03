@@ -1,0 +1,299 @@
+
+// -----------------------------------------------------------------FILTERING
+create or replace PROCEDURE filter_by_field
+    ( 
+    v_filtered_cursor OUT SYS_REFCURSOR,
+    p_country IN VARCHAR2 DEFAULT 'all',
+    p_year IN NUMBER DEFAULT 0, 
+    p_rating IN VARCHAR2 DEFAULT 'all'
+    )
+IS
+BEGIN
+    IF p_country != 'all' AND p_year != 0 AND p_rating != 'all'
+    THEN
+        OPEN v_filtered_cursor
+        FOR 'SELECT * FROM netflix
+            WHERE (country = :c) 
+            AND (release_year = :y )
+            AND (rating = :r)' USING p_country, p_year, p_rating;
+
+    ELSIF p_country != 'all' AND p_year = 0 AND p_rating = 'all'
+    THEN
+        OPEN v_filtered_cursor
+        FOR 'SELECT * FROM netflix
+            WHERE (country = :c)' USING p_country;
+
+    ELSIF p_country = 'all' AND p_year != 0 AND p_rating = 'all'
+    THEN
+        OPEN v_filtered_cursor
+        FOR 'SELECT * FROM netflix
+            WHERE (release_year = :y)' USING p_year;
+
+    ELSIF p_country = 'all' AND p_year = 0 AND p_rating != 'all'
+    THEN
+        OPEN v_filtered_cursor
+        FOR 'SELECT * FROM netflix
+            WHERE (rating = :r)' USING p_rating;
+
+    ELSIF p_country != 'all' AND p_year != 0 AND p_rating = 'all'
+    THEN
+        OPEN v_filtered_cursor
+        FOR 'SELECT * FROM netflix
+            WHERE (country = :c OR country IS null) 
+            AND (release_year = :y )' USING p_country, p_year;
+
+    ELSIF p_country = 'all' AND p_year != 0 AND p_rating != 'all'
+    THEN
+        OPEN v_filtered_cursor
+        FOR 'SELECT * FROM netflix
+            WHERE (release_year = :y )
+            AND (rating = :r)' USING p_year, p_rating;
+
+    ELSIF p_country != 'all' AND p_year = 0 AND p_rating != 'all'
+    THEN
+        OPEN v_filtered_cursor
+        FOR 'SELECT * FROM netflix
+            WHERE (country = :c )
+            AND (rating = :r)' USING p_country, p_rating;
+
+    ELSE
+        OPEN v_filtered_cursor
+        FOR 'SELECT * FROM netflix';
+
+    END IF;
+END;
+// -----------------------------------------------------------------FILTERING END
+
+
+
+
+
+
+
+
+// -----------------------------------------------------------------SEARCHING
+create or replace PROCEDURE search_netflix (p_title IN VARCHAR2, v_results_cursor OUT SYS_REFCURSOR)
+IS
+BEGIN
+    OPEN v_results_cursor
+    FOR 'SELECT * FROM netflix
+         WHERE UPPER(title) LIKE ''%'' || UPPER(:t) || ''%'' ' USING p_title;
+END;
+
+// -----------------------------------------------------------------SEARCHING END
+
+
+
+
+
+
+// -----------------------------------------------------------------SORTING
+create or replace PROCEDURE sort_netflix
+    (p_field IN VARCHAR2, 
+    p_order IN VARCHAR2, 
+    v_net_cursor OUT SYS_REFCURSOR
+    )
+IS
+    CURSOR netflix_cols IS
+        SELECT column_name
+        FROM all_tab_columns
+        WHERE table_name = 'NETFLIX';
+BEGIN
+    FOR i IN netflix_cols LOOP
+        IF UPPER(p_field) = UPPER(i.column_name) THEN
+            OPEN v_net_cursor
+                FOR 'SELECT * FROM NETFLIX
+                    ORDER BY ' || p_field || ' ' || p_order;
+        END IF;
+    END LOOP;
+END;
+
+// -----------------------------------------------------------------SORTING
+
+
+
+
+
+
+// -----------------------------------------------------------------PACKAGE SPEC and INSERT,UPDATE,DELETE Procedures
+create or replace PACKAGE idu_package
+AS
+PROCEDURE ins_upd_netflix
+(
+    p_id NUMBER,
+    p_type VARCHAR2,
+    p_title VARCHAR2,
+    p_director VARCHAR2,
+    p_cast VARCHAR2,
+    p_country VARCHAR2,
+    p_date_added DATE,
+    p_release_year NUMBER,
+    p_rating VARCHAR2,
+    p_duration VARCHAR2,
+    p_listed_in VARCHAR2,
+    p_description VARCHAR2
+);
+
+PROCEDURE del_netflix
+(
+    p_id NUMBER
+);
+
+END idu_package;
+
+
+
+
+// ----------------------------------------------------------------- PACKAGE SPEC END
+
+
+
+
+// ----------------------------------------------------------------- PACKAGE BODY
+create or replace PACKAGE BODY idu_package
+AS
+PROCEDURE ins_upd_netflix
+(
+    p_id NUMBER,
+    p_type VARCHAR2,
+    p_title VARCHAR2,
+    p_director VARCHAR2,
+    p_cast VARCHAR2,
+    p_country VARCHAR2,
+    p_date_added DATE,
+    p_release_year NUMBER,
+    p_rating VARCHAR2,
+    p_duration VARCHAR2,
+    p_listed_in VARCHAR2,
+    p_description VARCHAR2
+)
+IS
+    v_netflix netflix%ROWTYPE;
+    v_id NUMBER;
+BEGIN
+    SELECT * INTO v_netflix FROM netflix
+    WHERE id = p_id;
+
+    UPDATE netflix
+        SET  
+            type = p_type,
+            title = p_title,
+            director = p_director,
+            cast = p_cast,
+            country = p_country,
+            date_added = p_date_added,
+            release_year = p_release_year,
+            rating = p_rating,
+            duration = p_duration,
+            listed_in = p_listed_in,
+            description = p_description
+        WHERE id = p_id;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        IF p_id IS NOT NULL THEN
+            INSERT INTO netflix(type, title, director, cast, country, date_added, release_year, rating, duration, listed_in, description, id) 
+            VALUES(
+                p_type,
+                p_title,
+                p_director,
+                p_cast,
+                p_country,
+                p_date_added,
+                p_release_year,
+                p_rating,
+                p_duration,
+                p_listed_in,
+                p_description,
+                p_id);
+        ELSE
+            SELECT MAX(id) INTO v_id FROM netflix;
+            INSERT INTO netflix(type, title, director, cast, country, date_added, release_year, rating, duration, listed_in, description, id) 
+            VALUES(
+                p_type,
+                p_title,
+                p_director,
+                p_cast,
+                p_country,
+                p_date_added,
+                p_release_year,
+                p_rating,
+                p_duration,
+                p_listed_in,
+                p_description,
+                v_id + 1);
+        END IF;
+END;
+
+PROCEDURE del_netflix
+(
+    p_id NUMBER
+)
+IS
+    v_id NUMBER;
+BEGIN
+    SELECT id INTO v_id
+    FROM netflix
+    WHERE id = p_id;
+
+    DELETE FROM netflix
+    WHERE id = v_id;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+    DBMS_OUTPUT.PUT_LINE('No such data');
+END;
+
+END idu_package;
+
+// ----------------------------------------------------------------- PACKAGE BODY END
+
+
+
+// -----------------------------------------------------------------DERIVED_RATING TRIGGER
+create or replace TRIGGER derived_rating
+    BEFORE INSERT OR UPDATE ON netflix FOR EACH ROW
+BEGIN
+    :NEW.rate := CASE :NEW.rating
+    WHEN 'TV-Y' THEN 'All children'
+    WHEN 'TV-Y7' THEN 'Directed to Older Children'
+    WHEN 'TV-G' THEN 'General Audience'
+    WHEN 'TV-PG' THEN 'Parental Guidance Suggested'
+    WHEN 'TV-14' THEN 'Parents Strongly Cautioned'
+    WHEN 'TV-MA' THEN 'Mature Audience Only'
+
+    WHEN 'G' THEN 'General Audience'
+    WHEN 'PG' THEN 'Parental Guidance Suggested'
+    WHEN 'PG-13' THEN 'Parents Strongly Cautioned'
+    WHEN 'R' THEN 'Restricted'
+    WHEN 'NC-17' THEN 'Clearly adult'
+
+    ELSE 'Unrated'
+    END;
+END;
+
+// -----------------------------------------------------------------DERIVED_RATING TRIGGER END
+
+
+
+
+
+
+// -----------------------------------------------------------------DERIVED_NOVELTY TRIGGER
+
+create or replace TRIGGER derived_novelty
+    BEFORE INSERT OR UPDATE ON netflix FOR EACH ROW
+BEGIN
+    :NEW.novelty := CASE
+    WHEN :NEW.release_year >= 2020  
+        THEN 'Premiere'
+    WHEN :NEW.release_year >= 2015 AND :NEW.release_year < 2020
+        THEN 'New'
+    WHEN :NEW.release_year >= 2010 AND :NEW.release_year < 2015
+        THEN 'Not so new'
+    WHEN :NEW.release_year >= 2000 AND :NEW.release_year < 2010
+        THEN 'Old'
+    WHEN :NEW.release_year < 2000
+        THEN 'Ancient'
+    END;
+END;
+
+// -----------------------------------------------------------------DERIVED_NOVELTY TRIGGER END
